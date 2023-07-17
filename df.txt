@@ -1,0 +1,299 @@
+Problem 1 
+
+df.explain(true)
+== Parsed Logical Plan ==
+'Project ['country, 'EU]
++- 'Filter ('coastline = yes)
+   +- 'UnresolvedRelation [Countries], [], false
+
+== Analyzed Logical Plan ==
+country: string, EU: string
+Project [country#71, EU#73]
++- Filter (coastline#74 = yes)
+   +- SubqueryAlias countries
+      +- View (`Countries`, [country#71,pop#72,EU#73,coastline#74])
+         +- Relation [country#71,pop#72,EU#73,coastline#74] csv
+
+== Optimized Logical Plan ==
+Project [country#71, EU#73]
++- Filter (isnotnull(coastline#74) AND (coastline#74 = yes))
+   +- Relation [country#71,pop#72,EU#73,coastline#74] csv
+
+== Physical Plan ==
+*(1) Project [country#71, EU#73]
++- *(1) Filter (isnotnull(coastline#74) AND (coastline#74 = yes))
+   +- FileScan csv [country#71,EU#73,coastline#74] Batched: false, DataFilters: [isnotnull(coastline#74), (coastline#74 = yes)], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/C:/SparkCourse/Countries.csv], PartitionFilters: [], PushedFilters: [IsNotNull(coastline), EqualTo(coastline,yes)], ReadSchema: struct<country:string,EU:string,coastline:string>
+
+
+Problem 2
+
+ df.explain(true)
+== Parsed Logical Plan ==
+'Project ['city]
++- 'Filter ('temp < 4)
+   +- 'SubqueryAlias __auto_generated_subquery_name
+      +- 'Project ['city, 'temp]
+         +- 'UnresolvedRelation [Cities], [], false
+
+== Analyzed Logical Plan ==
+city: string
+Project [city#44]
++- Filter (cast(temp#48 as int) < 4)
+   +- SubqueryAlias __auto_generated_subquery_name
+      +- Project [city#44, temp#48]
+         +- SubqueryAlias cities
+            +- View (`Cities`, [city#44,country#45,latitude#46,longitude#47,temp#48])
+               +- Relation [city#44,country#45,latitude#46,longitude#47,temp#48] csv
+
+== Optimized Logical Plan ==
+Project [city#44]
++- Filter (isnotnull(temp#48) AND (cast(temp#48 as int) < 4))
+   +- Relation [city#44,country#45,latitude#46,longitude#47,temp#48] csv
+
+== Physical Plan ==
+*(1) Project [city#44]
++- *(1) Filter (isnotnull(temp#48) AND (cast(temp#48 as int) < 4))
+   +- FileScan csv [city#44,temp#48] Batched: false, DataFilters: [isnotnull(temp#48), (cast(temp#48 as int) < 4)], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/C:/SparkCourse/Cities.csv], PartitionFilters: [], PushedFilters: [IsNotNull(temp)], ReadSchema: struct<city:string,temp:string>
+
+Problem 3 
+
+scala> df.explain(true)
+== Parsed Logical Plan ==
+'Project [*]
++- 'Filter ((('Cities.country = 'Countries.country) AND ('Cities.temp < 4)) AND ('Countries.pop > 6))
+   +- 'Join Inner
+      :- 'UnresolvedRelation [Cities], [], false
+      +- 'UnresolvedRelation [Countries], [], false
+
+== Analyzed Logical Plan ==
+city: string, country: string, latitude: string, longitude: string, temp: string, country: string, pop: string, EU: string, coastline: string
+Project [city#44, country#45, latitude#46, longitude#47, temp#48, country#71, pop#72, EU#73, coastline#74]
++- Filter (((country#45 = country#71) AND (cast(temp#48 as int) < 4)) AND (cast(pop#72 as int) > 6))
+   +- Join Inner
+      :- SubqueryAlias cities
+      :  +- View (`Cities`, [city#44,country#45,latitude#46,longitude#47,temp#48])
+      :     +- Relation [city#44,country#45,latitude#46,longitude#47,temp#48] csv
+      +- SubqueryAlias countries
+         +- View (`Countries`, [country#71,pop#72,EU#73,coastline#74])
+            +- Relation [country#71,pop#72,EU#73,coastline#74] csv
+
+== Optimized Logical Plan ==
+Join Inner, (country#45 = country#71)
+:- Filter ((isnotnull(temp#48) AND (cast(temp#48 as int) < 4)) AND isnotnull(country#45))
+:  +- Relation [city#44,country#45,latitude#46,longitude#47,temp#48] csv
++- Filter ((isnotnull(pop#72) AND (cast(pop#72 as int) > 6)) AND isnotnull(country#71))
+   +- Relation [country#71,pop#72,EU#73,coastline#74] csv
+
+== Physical Plan ==
+AdaptiveSparkPlan isFinalPlan=false
++- BroadcastHashJoin [country#45], [country#71], Inner, BuildRight, false
+   :- Filter ((isnotnull(temp#48) AND (cast(temp#48 as int) < 4)) AND isnotnull(country#45))
+   :  +- FileScan csv [city#44,country#45,latitude#46,longitude#47,temp#48] Batched: false, DataFilters: [isnotnull(temp#48), (cast(temp#48 as int) < 4), isnotnull(country#45)], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/C:/SparkCourse/Cities.csv], PartitionFilters: [], PushedFilters: [IsNotNull(temp), IsNotNull(country)], ReadSchema: struct<city:string,country:string,latitude:string,longitude:string,temp:string>
+   +- BroadcastExchange HashedRelationBroadcastMode(List(input[0, string, false]),false), [plan_id=222]
+      +- Filter ((isnotnull(pop#72) AND (cast(pop#72 as int) > 6)) AND isnotnull(country#71))
+         +- FileScan csv [country#71,pop#72,EU#73,coastline#74] Batched: false, DataFilters: [isnotnull(pop#72), (cast(pop#72 as int) > 6), isnotnull(country#71)], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/C:/SparkCourse/Countries.csv], PartitionFilters: [], PushedFilters: [IsNotNull(pop), IsNotNull(country)], ReadSchema: struct<country:string,pop:string,EU:string,coastline:string>
+
+Problem 4 
+
+ df.explain(true)
+== Parsed Logical Plan ==
+'Project ['city, 'pop]
++- 'Filter (('Cities.country = 'Countries.country) AND ('Countries.pop > 6))
+   +- 'Join Inner
+      :- 'UnresolvedRelation [Cities], [], false
+      +- 'UnresolvedRelation [Countries], [], false
+
+== Analyzed Logical Plan ==
+city: string, pop: string
+Project [city#44, pop#72]
++- Filter ((country#45 = country#71) AND (cast(pop#72 as int) > 6))
+   +- Join Inner
+      :- SubqueryAlias cities
+      :  +- View (`Cities`, [city#44,country#45,latitude#46,longitude#47,temp#48])
+      :     +- Relation [city#44,country#45,latitude#46,longitude#47,temp#48] csv
+      +- SubqueryAlias countries
+         +- View (`Countries`, [country#71,pop#72,EU#73,coastline#74])
+            +- Relation [country#71,pop#72,EU#73,coastline#74] csv
+
+== Optimized Logical Plan ==
+Project [city#44, pop#72]
++- Join Inner, (country#45 = country#71)
+   :- Project [city#44, country#45]
+   :  +- Filter isnotnull(country#45)
+   :     +- Relation [city#44,country#45,latitude#46,longitude#47,temp#48] csv
+   +- Project [country#71, pop#72]
+      +- Filter ((isnotnull(pop#72) AND (cast(pop#72 as int) > 6)) AND isnotnull(country#71))
+         +- Relation [country#71,pop#72,EU#73,coastline#74] csv
+
+== Physical Plan ==
+AdaptiveSparkPlan isFinalPlan=false
++- Project [city#44, pop#72]
+   +- BroadcastHashJoin [country#45], [country#71], Inner, BuildRight, false
+      :- Filter isnotnull(country#45)
+      :  +- FileScan csv [city#44,country#45] Batched: false, DataFilters: [isnotnull(country#45)], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/C:/SparkCourse/Cities.csv], PartitionFilters: [], PushedFilters: [IsNotNull(country)], ReadSchema: struct<city:string,country:string>
+      +- BroadcastExchange HashedRelationBroadcastMode(List(input[0, string, false]),false), [plan_id=325]
+         +- Filter ((isnotnull(pop#72) AND (cast(pop#72 as int) > 6)) AND isnotnull(country#71))
+            +- FileScan csv [country#71,pop#72] Batched: false, DataFilters: [isnotnull(pop#72), (cast(pop#72 as int) > 6), isnotnull(country#71)], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/C:/SparkCourse/Countries.csv], PartitionFilters: [], PushedFilters: [IsNotNull(pop), IsNotNull(country)], ReadSchema: struct<country:string,pop:string>
+
+Problem 5
+
+df.explain(true)
+== Parsed Logical Plan ==
+'Project [*]
++- 'Filter 'country LIKE %e%d
+   +- 'UnresolvedRelation [Countries], [], false
+
+== Analyzed Logical Plan ==
+country: string, pop: string, EU: string, coastline: string
+Project [country#71, pop#72, EU#73, coastline#74]
++- Filter country#71 LIKE %e%d
+   +- SubqueryAlias countries
+      +- View (`Countries`, [country#71,pop#72,EU#73,coastline#74])
+         +- Relation [country#71,pop#72,EU#73,coastline#74] csv
+
+== Optimized Logical Plan ==
+Filter (isnotnull(country#71) AND country#71 LIKE %e%d)
++- Relation [country#71,pop#72,EU#73,coastline#74] csv
+
+== Physical Plan ==
+*(1) Filter (isnotnull(country#71) AND country#71 LIKE %e%d)
++- FileScan csv [country#71,pop#72,EU#73,coastline#74] Batched: false, DataFilters: [isnotnull(country#71), country#71 LIKE %e%d], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/C:/SparkCourse/Countries.csv], PartitionFilters: [], PushedFilters: [IsNotNull(country)], ReadSchema: struct<country:string,pop:string,EU:string,coastline:string>
+
+Problem 6
+
+ df.explain(true)
+== Parsed Logical Plan ==
+'Project [*]
++- 'Filter 'country LIKE %ia
+   +- 'UnresolvedRelation [Countries], [], false
+
+== Analyzed Logical Plan ==
+country: string, pop: string, EU: string, coastline: string
+Project [country#71, pop#72, EU#73, coastline#74]
++- Filter country#71 LIKE %ia
+   +- SubqueryAlias countries
+      +- View (`Countries`, [country#71,pop#72,EU#73,coastline#74])
+         +- Relation [country#71,pop#72,EU#73,coastline#74] csv
+
+== Optimized Logical Plan ==
+Filter (isnotnull(country#71) AND EndsWith(country#71, ia))
++- Relation [country#71,pop#72,EU#73,coastline#74] csv
+
+== Physical Plan ==
+*(1) Filter (isnotnull(country#71) AND EndsWith(country#71, ia))
++- FileScan csv [country#71,pop#72,EU#73,coastline#74] Batched: false, DataFilters: [isnotnull(country#71), EndsWith(country#71, ia)], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/C:/SparkCourse/Countries.csv], PartitionFilters: [], PushedFilters: [IsNotNull(country), StringEndsWith(country,ia)], ReadSchema: struct<country:string,pop:string,EU:string,coastline:string>
+
+Problem 7 
+
+ df.explain(true)
+== Parsed Logical Plan ==
+'Project [('t1 + 1) AS t2#278]
++- 'SubqueryAlias __auto_generated_subquery_name
+   +- 'Project [(cast('temp as int) + 1) AS t1#277]
+      +- 'UnresolvedRelation [Cities], [], false
+
+== Analyzed Logical Plan ==
+t2: int
+Project [(t1#277 + 1) AS t2#278]
++- SubqueryAlias __auto_generated_subquery_name
+   +- Project [(cast(temp#48 as int) + 1) AS t1#277]
+      +- SubqueryAlias cities
+         +- View (`Cities`, [city#44,country#45,latitude#46,longitude#47,temp#48])
+            +- Relation [city#44,country#45,latitude#46,longitude#47,temp#48] csv
+
+== Optimized Logical Plan ==
+Project [(cast(temp#48 as int) + 2) AS t2#278]
++- Relation [city#44,country#45,latitude#46,longitude#47,temp#48] csv
+
+== Physical Plan ==
+*(1) Project [(cast(temp#48 as int) + 2) AS t2#278]
++- FileScan csv [temp#48] Batched: false, DataFilters: [], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/C:/SparkCourse/Cities.csv], PartitionFilters: [], PushedFilters: [], ReadSchema: struct<temp:string>
+
+Problem 8 
+
+df.explain(true)
+== Parsed Logical Plan ==
+'Project [('t1 + 1) AS t2#287]
++- 'SubqueryAlias __auto_generated_subquery_name
+   +- 'Project [('temp + 1) AS t1#286]
+      +- 'UnresolvedRelation [Cities], [], false
+
+== Analyzed Logical Plan ==
+t2: double
+Project [(t1#286 + cast(1 as double)) AS t2#287]
++- SubqueryAlias __auto_generated_subquery_name
+   +- Project [(cast(temp#48 as double) + cast(1 as double)) AS t1#286]
+      +- SubqueryAlias cities
+         +- View (`Cities`, [city#44,country#45,latitude#46,longitude#47,temp#48])
+            +- Relation [city#44,country#45,latitude#46,longitude#47,temp#48] csv
+
+== Optimized Logical Plan ==
+Project [((cast(temp#48 as double) + 1.0) + 1.0) AS t2#287]
++- Relation [city#44,country#45,latitude#46,longitude#47,temp#48] csv
+
+== Physical Plan ==
+*(1) Project [((cast(temp#48 as double) + 1.0) + 1.0) AS t2#287]
++- FileScan csv [temp#48] Batched: false, DataFilters: [], Format: CSV, Location: InMemoryFileIndex(1 paths)[file:/C:/SparkCourse/Cities.csv], PartitionFilters: [], PushedFilters: [], ReadSchema: struct<temp:string>
+
+
+Problem 9
+
+== Parsed Logical Plan ==
+'Project ['A.country, 'B.pop, 'C.city, 'C.temp, 'C.latitude]
++- 'Join Inner, (('C.country = 'A.country) && ('C.country = 'B.country))
+   :- 'Join Inner, ('A.country = 'B.country)
+   :  :- 'SubqueryAlias A
+   :  :  +- 'UnresolvedRelation `Countries`
+   :  +- 'SubqueryAlias B
+   :     +- 'UnresolvedRelation `Countries`
+   +- 'SubqueryAlias C
+      +- 'UnresolvedRelation `Cities`
+
+== Analyzed Logical Plan ==
+country: string, pop: string, city: string, temp: string, latitude: string
+Project [country#50, pop#137, city#30, temp#34, latitude#32]
++- Join Inner, ((country#31 = country#50) && (country#31 = country#136))
+   :- Join Inner, (country#50 = country#136)
+   :  :- SubqueryAlias A
+   :  :  +- SubqueryAlias countries
+   :  :     +- Relation[country#50,pop#51,EU#52,coastline#53] csv
+   :  +- SubqueryAlias B
+   :     +- SubqueryAlias countries
+   :        +- Relation[country#136,pop#137,EU#138,coastline#139] csv
+   +- SubqueryAlias C
+      +- SubqueryAlias cities
+         +- Relation[city#30,country#31,latitude#32,longitude#33,temp#34] csv
+
+== Optimized Logical Plan ==
+Project [country#50, pop#137, city#30, temp#34, latitude#32]
++- Join Inner, ((country#31 = country#50) && (country#31 = country#136))
+   :- Join Inner, (country#50 = country#136)
+   :  :- Project [country#50]
+   :  :  +- Filter isnotnull(country#50)
+   :  :     +- Relation[country#50,pop#51,EU#52,coastline#53] csv
+   :  +- Project [country#136, pop#137]
+   :     +- Filter isnotnull(country#136)
+   :        +- Relation[country#136,pop#137,EU#138,coastline#139] csv
+   +- Project [city#30, country#31, latitude#32, temp#34]
+      +- Filter isnotnull(country#31)
+         +- Relation[city#30,country#31,latitude#32,longitude#33,temp#34] csv
+
+== Physical Plan ==
+*(3) Project [country#50, pop#137, city#30, temp#34, latitude#32]
++- *(3) BroadcastHashJoin [country#50, country#136], [country#31, country#31], Inner, BuildRight
+   :- *(3) BroadcastHashJoin [country#50], [country#136], Inner, BuildLeft
+   :  :- BroadcastExchange HashedRelationBroadcastMode(List(input[0, string, true]))
+   :  :  +- *(1) Project [country#50]
+   :  :     +- *(1) Filter isnotnull(country#50)
+   :  :        +- *(1) FileScan csv [country#50] Batched: false, Format: CSV, Location: InMemoryFileIndex[file:/C:/Users/smitp/qep/qep/Countries.csv], PartitionFilters: [], PushedFilters: [IsNotNull(country)], ReadSchema: struct<country:string>
+   :  +- *(3) Project [country#136, pop#137]
+   :     +- *(3) Filter isnotnull(country#136)
+   :        +- *(3) FileScan csv [country#136,pop#137] Batched: false, Format: CSV, Location: InMemoryFileIndex[file:/C:/Users/smitp/qep/qep/Countries.csv], PartitionFilters: [], PushedFilters: [IsNotNull(country)], ReadSchema: struct<country:string,pop:string>
+   +- BroadcastExchange HashedRelationBroadcastMode(List(input[1, string, true], input[1, string, true]))
+      +- *(2) Project [city#30, country#31, latitude#32, temp#34]
+         +- *(2) Filter isnotnull(country#31)
+            +- *(2) FileScan csv [city#30,country#31,latitude#32,temp#34] Batched: false, Format: CSV, Location: InMemoryFileIndex[file:/C:/Users/smitp/qep/qep/Cities.csv], PartitionFilters: [], PushedFilters: [IsNotNull(country)], ReadSchema: struct<city:string,country:string,latitude:string,temp:string>
+
+
+Problem 10 
+
